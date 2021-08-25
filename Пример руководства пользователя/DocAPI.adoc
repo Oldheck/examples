@@ -1,0 +1,633 @@
+= API Fanzilla. Руководство пользователя
+Нечай-Гумен А.; Мальцев К.; Рогачев Е.
+:toc: left
+
+
+== Введение
+Система использут для запросов язык GraphQL.
+
+=== Что такое GraphQL?
+GraphQL — язык запросов для API, призванный обеспечить более эффективную, мощную и гибкую альтернативу REST.
+В его основе лежит декларативная выборка данных, то есть клиент может точно указать, какие именно данные ему нужны от API.
+Вместо нескольких конечных точек API (REST) GraphQL имеет единую конечную точку, которая предоставляет клиенту запрашиваемые данные.
+Познакомиться с ним можно на сайте: http://graphql.org
+
+В отличие от API (REST), вместо нескольких конечных точек, GraphQL имеет единую конечную точку, которая предоставляет клиенту запрашиваемые данные.
+Как и какие данные клиент может получить, разрабочик описывает в схеме GraphQL.
+
+=== Виды запросов
+В GraphQL все запросы выполняются методом POST, передаются в формате HTTP на единую
+конечную точку. В общем случае это *https://fanzilla.api.pro/graphql*. Передаваемые данные
+содержатся в теле запроса в формате JSON.
+
+В GraphQL существует 3 основных вида запросов:
+
+- *Query*
+- *Mutation*
+- *Subscription*
+
+==== Query
+Запросы *Query* используются для получения/чтения данных в схеме.
+
+Пример такого запроса:
+
+  query getTotalUsers{
+    users{
+      getListAdvanced(paging: { limit: 5, page: 0 }) {
+        total
+          list{
+            id
+            login
+            visibleId
+          }
+        }
+      }
+
+==== Mutation
+
+Тип *Mutation* применяется для записи, удаления и изменения данных в GraphQL.
+
+Пример такого запроса:
+
+ mutation login($login: String!, $password: String!){
+   auth{
+     login(login: $login, password: $password){
+       idToken
+       refreshToken
+       tokenType
+       expiresIn
+     }
+   }
+ }
+
+==== Subscription
+
+Этот вид запросов в GraphQL используется для оповещения пользователей о каких-либо изменениях, произошедших в системе. Работает это так: клиент подписывается на какое-то событие, после чего с сервером устанавливается соединение (обычно через WebSocket), и, когда это событие происходит, сервер отсылает клиенту уведомление по установленному соединению.
+
+Пример:
+
+ subscription {
+	  newPerson {
+		    name
+		    age
+		    id
+	    }
+}
+
+Стоит отметить, что все возможности для запросов query, mutation и subscription создаёт и настраивает разработчик конкретной API.
+Ответы на запросы возвращаются в формате JSON.
+
+Пример ответа с данными:
+
+  {
+  "data": {
+    "vipInvitation": {
+      "getShortInviteLink": "https://sportidshort.stage.sebbia.pro/kjWNN"
+    }
+    }
+  }
+
+Пример ответа с ошибкой:
+
+  {
+  "errors": [
+    {
+      "message": "code=INTERNAL_ERROR, uid=a6dca4cf, message=Invalid response status 400 Bad Request",
+      "locations": [
+        {
+          "line": 3,
+          "column": 5
+        }
+      ],
+      "path": [
+        "auth",
+        "refreshToken"
+      ],
+      "extensions": {
+        "result": "INTERNAL_ERROR",
+        "message": "Invalid response status 400 Bad Request",
+        "uid": "a6dca4cf",
+        "classification": "DataFetchingException",
+        "code": "INTERNAL_SERVER_ERROR"
+      }
+    }
+  ],
+  "data": null
+  }
+
+<<<
+
+== Инструменты для работы с GraphQL
+Для составления запросов в GraphQL можно использовать различные инструменты, такие как:
+
+- GraphQL Playground - это графическая, интерактивная среда разработки GraphQL в браузере
+
+image::fig1.png[]
+
+- Специализированные GrapQL - клиенты
+
+image::fig2.png[]
+
+- Средства разработчика API
+
+image::fig3.png[]
+
+<<<
+
+= Описание запросов
+API состоит из модулей (микросервисов). Ниже дается краткое описание наиболее распространенных запросов к основным модулям.
+
+== Запросы для модуля авторизации
+
+=== Регистрация пользователя
+Пример запроса:
+
+  mutation registerAndSendSMS ($registrationInfo: RegistrationInfoInput!) {
+    registration{
+      registerUser(registrationInfo: $registrationInfo){
+        id
+        login
+        person{
+          surname
+          name
+          patronymic
+          birthday
+          contacts{
+            type
+            value
+            isConfirmed
+          }
+        }
+      }
+    }
+
+
+Пример данных для запроса (подставляется в поле [red big]#variables#)
+
+  {
+    "registrationInfo": {
+      "person": {
+        "name": {
+          "ru": "Имя",
+          "en": "Name"
+        },
+        "patronymic": {  // Не обязательный параметр
+          "ru": "Отчество",
+          "en": "Patronymic"
+        },
+        "surname": {
+          "ru": "Фамилия",
+          "en": "Surname"
+        },
+        "birthday": "2020-09-20", // Не обязательный параметр
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "79123456789" // В формате 7xxxxxxxxxx (без +, начинается на 7)
+          },
+          {
+            "type": "EMAIL",
+            "value": "some@mail.com"
+          }
+        ]
+      }
+    }
+  }
+
+В качестве логина используется номер телефона в формате [red big]#7xxxxxxxxxx#. При успешной регистрации, пользователю, на указанный телефон, придёт СМС с паролем для входа. Этот пароль в дальнейшем используется для авторизации пользователя.
+
+=== Авторизация пользователя
+Запрос:
+
+  mutation login($login: String!, $password: String!){
+    auth{
+      login(login: $login, password: $password){
+        idToken
+        refreshToken
+        tokenType
+        expiresIn
+      }
+    }
+  }
+
+Пример данных для запроса:
+
+  {
+  "login": "7XXXXXXXXXX",
+  "password": "XXXXX"
+  }
+
+Пример ответа:
+
+  {
+    "data": {
+      "auth": {
+        "login": {
+          "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjdlNzIyOGNhNDgzNWVlNjJhYjZiZTA5Y2U3N2JiN2M4YjJiYTZkYjQifQ.eyJpc3MiOiJodHRwczovL3Nwb3J0aWRhcGkuc3RhZ2Uuc2ViYmlhLnByby9hdXRoIiwic3ViIjoiQ2lReU5UWXpaalUyTmkwNU56WmpMVEV3TTJFdE9EYzVNaTFsTnpsbU9ERTJPR1E1WlRjU0JHeGtZWEEiLCJhdWQiOiJzcG9ydGlkLXNlcnZpY2UtYXV0aCIsImV4cCI6MTYxNDE4ODg1NSwiaWF0IjoxNjExNTk2ODU1LCJhdF9oYXNoIjoidU9NYTE5bTZHWTFhVzVYVHVqX2tKdyJ9.RveqPJ0P7D-T9qH5HUimAgLLZcur9wB8CpiX_CUrlbuZWCaxZA04-WM11UOZxV1ErwzGzBbCmyoejyQmimKZLRgVOAAAAAAAAAS5RsTzye71PwYMAF8jPNxKKcyQwvqeSv7ns5GmZmXpDwQhESe2F_aTJCg3wHdUYBem-Fp5LTHkc7-Gc4jTsUAqAAffLt9wn_SxgdtikV9YCNk-fzIyy6DryeZORWM6CCIWk2qhG6nZsPcoKvGgEIvSLxKiAV1NDd_hMc0S7QS-C6lK2wU2QAtWzteEKFiQL9hh5EpJdBAw6UDnRVMh6BrQcyZIS_UYRZriVDJKqaspfj7JN_UkMkAoLTuKOiiA",
+          "refreshToken": "ChluYmZ3NmpoM3VhcDU0eW9ic2kycjU0Z3hmEhljMzN2Mnk0anhqcXVsbWhmNjQ3eHNrbms0",
+          "tokenType": "bearer",
+          "expiresIn": 2591999
+        }
+      }
+    }
+  }
+
+При авторизации. для пользователя генерируется токен, который в последующем может использоваться для аутентификации пользователя. при выполнении некоторых запросов. При необходимости аутентификации, данный токен добавляется в заголовок запроса ([red big]#HTTP Header#):
+
+  {
+   "Authorization": "Bearer <idToken>"
+  }
+
+=== Обновление токена
+Пример запроса:
+
+  mutation refresh($refreshToken: String!){
+    auth{
+      refreshToken(refreshToken: $refreshToken){
+        refreshToken
+        expiresIn
+        idToken
+        tokenType
+      }
+     }
+   }
+
+Пример данных для запроса:
+
+  {
+      "refreshToken": "ChlhdHdqc2FhZnp4eHNzazNkcDV5ZDJ6a2RqEhl6N2Jydnh4bjZrbnh1b2ZxcHpmeWc2d3Z4"
+  }
+
+Переменная  [red big]#refresh Token# генерируется одновременно с токеном при авторизации.
+
+В ответ генерируется новый токен:
+
+  {
+    "data": {
+      "auth": {
+        "refreshToken": {
+          "refreshToken": "Chl6c2l4NGJ1d2RqN2l5eTN1bjJ0NWJyc3N1EhlvNXdnbGNkcWN6anZ4aG1jaW9lenk2NWlv",
+          "expiresIn": 259199,
+          "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImJiM2ZhZjVjOGQ5YmQzYWJmNjU0YTAzMGM1MTRkNDdiNTE4YWQ0NjUifQ.eyJpc3MiOiJodHRwOi8vc3BvcnRpZGFwaS5kZXYuc2ViYmlhLnByby9hdXRoIiwic3ViIjoiQ2lReFlXUTFNalV3WlMwMFl6ZGhMVEV3TXprdE9UZzJZUzB4WWpVeE9UTmpaV0ZtTlRjU0JHeGtZWEEiLCJhdWQiOiJzcG9ydGlkLXNlcnZpY2UtYXV0aCIsImV4cCI6MTYxMjAzMDk1NSwiaWF0IjoxNjExNzcxNzU1LCJhdF9oYXNoIjoiaTZrNjZlc2l0dmdQbldnanVHY1hqQSJ9.I1NIIURJ9NqEucNTjM1H3jBl-dwTCFt2k_RxQEn0-ThhzoualZKnFwT5QA-ifshIZax8NOQUjGdbqgr6EWidVbFM-HexW3Ro9EKm4SUscZgfZRSCQBU_z6WMJWLW7PAK37eV7-ZiQl_R9l1SUaI3XZvTFf7BMKasxdFWboo1ASpTjwwbOScnDmpkL_yDEuZCyFaFog_3L0DVtznqb5GXy1C0g1FjvuF6qKLCMpkGG8ocaCDilsVzqdMIhvAswM403giSHZyb5AEO1mVW3FnYvCXRSNIyrXrls9rNlcVu0Ja0pScogzRViHli2oQ40g5cCMnZV-wQgbYtjNIJHYPDcA",
+          "tokenType": "bearer"
+        }
+      }
+    }
+  }
+
+=== Восстановление пароля
+Запрос:
+
+  mutation restorePassword($phone: String!) {
+    registration {
+      restorePassword(phone: $phone) {
+        nextRestoreAfterMsecs
+      }
+    }
+  }
+
+В качестве данных для запроса указывается номер телефона в формате  [red big]#7xxxxxxxxxx#
+
+  {
+      "phone": "7XXXXXXXXXX"
+  }
+
+В ответ, на указанный номер приходит СМС со сгенерированным новым паролем.
+Частота использования запроса ограничивается переменной [red big]#nextRestoreAfterMsecs# (по умолчанию 10 мин.)
+
+== Запросы для модуля заказов
+
+=== Информация о корзине
+Пример запроса:
+
+  query getCart($userId: ID) {
+    order {
+      getCurrent(userId: $userId) {
+        id
+        user {
+          id
+          login
+          person {
+            name
+            patronymic
+            surname
+            contacts {
+              type
+              value
+            }
+          }
+        }
+        status
+        createdTime
+        purchaseTime
+        updateTime
+        price
+        priceWithDiscount
+        visibleId
+        appliedPromocode
+        promocodeValidUntil
+        items {
+          id
+          title
+          type
+          status
+          price
+          priceWithDiscount
+        }
+      }
+    }
+  }
+
+NOTE: Данный запрос требует аутентификации пользователя с помощью токена. Для текущего пользователя ввод [red big]#userId#  не требуется.
+
+Пример ответа:
+
+  {
+    "data": {
+      "order": {
+        "getCurrent": {
+          "id": "f4ad739cd62f44a1a0acef57cbdc29e0",
+          "user": {
+            "id": "67e48354-419d-1039-9105-2593f35f117d",
+            "login": "71234567890",
+            "person": {
+              "name": {
+                "ru": "Имя",
+                "en": "Name"
+              },
+              "patronymic": {
+                "ru": "Отчество",
+                "en": "Patronymic"
+              },
+              "surname": {
+                "ru": "Фамилия",
+                "en": "Surname"
+              },
+              "contacts": [
+                {
+                  "type": "PHONE",
+                  "value": "71234567890"
+                },
+                {
+                  "type": "EMAIL",
+                  "value": "mailbox@gmail.com"
+                }
+              ]
+            }
+          },
+          "status": "UNPAYED",
+          "createdTime": "2020-11-30T09:21:15.065856Z",
+          "purchaseTime": null,
+          "updateTime": "2021-01-25T07:52:28.125315Z",
+          "price": "0",
+          "priceWithDiscount": "0",
+          "visibleId": "O-20201130-95679",
+          "appliedPromocode": null,
+          "promocodeValidUntil": null,
+          "items": []
+        }
+      }
+    }
+  }
+
+.В ответе содержится следующая информация:
+. Статус заказа (*status*) - оплачен, не оплачен (payed/unpayed)
+. Время создания (*createdTime*) в формате [red]#YYYY-MM-DD#*T*[red]#HH:MM:SS#
+. Время изменения (*updateTime*) в формате [red]#YYYY-MM-DD#*T*[red]#HH:MM:SS#
+. Стоимость (*price*)
+. Стоимость с учетом скидки (*priceWithDiscount*)
+. Идентификатор заказа (*visibleId*) в удобном для чтения виде (содержит дату заказа и его уникальный номер)
+. Применение промокода (*appliedPromocode*)
+. Срок действия промокода (*promocodeValidUntil*)
+
+=== Получение пользователем списка своих заказов
+Пример запроса:
+
+  query getUserOrders(
+    $pagination: Pagination
+    $ordering: [OrderOrderingInput!]
+    $filter: OrderFilter
+  ) {
+    order {
+      getListOfCurrentUser(
+        paging: $pagination
+        ordering: $ordering
+        filter: $filter
+      ) {
+        total
+        page
+        limit
+        ordering {
+          field
+          direction
+        }
+        list {
+          id
+        }
+      }
+    }
+
+NOTE: Данный запрос требует аутентификации пользователя с помощью токена.
+
+Пример ответа:
+
+  {
+    "data": {
+      "order": {
+        "getListOfCurrentUser": {
+          "total": 69,
+          "page": 0,
+          "limit": 5,
+          "ordering": [
+            {
+              "field": "CREATED_TIME",
+              "direction": "DESC"
+            }
+          ],
+          "list": [
+            {
+              "id": "a458480b215649a0bfdc0ea3ae525fd5"
+            },
+            {
+              "id": "d71fd51563694a9c83fecd1652564f77"
+            },
+            {
+              "id": "5246223ac9da429680025941fcebfeb9"
+            },
+            {
+              "id": "f37b8016877b4d2783556e4f2e1dd954"
+            },
+            {
+              "id": "ee084988d149465c9dd04200cb6211c9"
+            }
+          ]
+        }
+      }
+    }
+  }
+
+В ответе содержится общее количество заказов и список идентификаторов заказаов текущего пользователя.
+
+=== Получить список заказов всех пользователей
+Пример запроса:
+
+  query getOrders(
+    $pagination: Pagination
+    $ordering: [OrderOrderingInput!]
+    $filter: OrderFilter
+  ) {
+    order {
+      getList(
+        paging: $pagination
+        ordering: $ordering
+        filter: $filter
+      ) {
+        total
+        page
+        limit
+        ordering {
+          field
+          direction
+        }
+        list {
+          id
+        }
+      }
+    }
+  }
+
+Аналогичен предыдущему. Позволяет получить список идентификаторов заказов для всех пользователей, зарегистрированных в системе и общее количество заказов.
+
+=== Получить заказ по его ID
+
+Пример запроса:
+
+  query getOrder(
+    $id: ID!
+  ) {
+    order {
+      getById(id: $id){
+        id
+      }
+  }
+
+NOTE: Данный запрос требует аутентификации пользователя с помощью токена.
+
+Пример данных для запроса:
+
+  {
+    "id":"d7ed34226a4646b9a205f809091123f9"
+  }
+
+Пример ответа:
+
+  {
+  "data": {
+    "order": {
+      "getById": {
+        "id": "d7ed34226a4646b9a205f809091123f9",
+        "status": "PAYED",
+        "price": "4000.00",
+        "user": {
+          "person": {
+            "name": {
+              "ru": "Клавдия",
+              "en": "Klavdiya"
+            },
+            "surname": {
+              "ru": "Петренко",
+              "en": "Petrenko"
+            },
+            "contacts": [
+              {
+                "type": "PHONE",
+                "value": "71234567890"
+              },
+              {
+                "type": "EMAIL",
+                "value": "mail@yandex.ru"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+== Запросы к модулю мероприятий
+=== Получить список мероприятий
+Пример запроса
+
+  query getMathList {
+    match{
+      getList{
+        page
+        list{
+          id
+          title
+          status
+          venue{
+            id
+            title
+            description
+            status
+          }
+         stage{
+          id
+          title
+          order
+          tournament{
+            id
+            title
+            description
+            status
+          }
+        }
+        }
+      }
+    }
+  }
+
+Пример ответа:
+
+  {
+    "data": {
+      "match": {
+        "getList": {
+          "page": 0,
+          "list": [
+            {
+              "id": "0dcc1320f944483c8d9362ec88e4b4b2"
+              "title": "Автодор — Зенит",
+              "startTime": "2021-01-31T09:00:25Z",
+              "status": "ACTIVE",
+              "venue": {
+                "id": "5734a0f0081b438aa085bd045d78f755",
+                "title": "Арена: «Баскет-Холл»",
+                "description": "Домашняя арена клуба Локомотив-Кубань",
+                "status": "ACTIVE"
+              },
+              "stage": {
+                "id": "90360c67e1c14e35a5213edd8bbd0dae",
+                "title": "Топ-16",
+                "order": 2,
+                "tournament": {
+                  "title": "Еврокубок",
+                  "description": null,
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+
+.Данные, содержащиеся в ответе
+. Информация о матче (ID, команды, время начала, статус)
+. Место проведения (ID, название, описание, статус)
+. Название турнира (ID, название, описание, статус)
+
+== Запросы к модулю лояльности
